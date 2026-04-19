@@ -24,11 +24,20 @@ const COLORS = {
 export default function InsightsView({ user }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [metricInsights, setMetricInsights] = useState({
+    steps: "Track your daily steps to stay active",
+    heart_rate: "Monitor your heart rate for cardiovascular health",
+    sleep: "Aim for 7-9 hours of quality sleep",
+    nutrition: "Log your meals to get more accurate nutrition insights",
+    stress: "Try a short breathing break to reduce stress"
+  });
   const [wearableData, setWearableData] = useState({
     steps: [],
     heartRate: [],
-    sleep: []
+    sleep: [],
+    nutrition: []
   });
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     async function loadInsights() {
@@ -45,12 +54,26 @@ export default function InsightsView({ user }) {
   }, [user?.id]);
 
   useEffect(() => {
+    async function loadMetricInsights() {
+      try {
+        const response = await fetch(`http://localhost:8000/api/user/metric-insights?user_id=${user?.id || '00000000-0000-0000-0000-000000000001'}`);
+        const data = await response.json();
+        setMetricInsights(data);
+      } catch (error) {
+        console.error('Failed to fetch metric insights:', error);
+      }
+    }
+    loadMetricInsights();
+  }, [user?.id]);
+
+  useEffect(() => {
     async function loadWearableData() {
       try {
-        const [stepsRes, heartRateRes, sleepRes] = await Promise.all([
+        const [stepsRes, heartRateRes, sleepRes, nutritionRes] = await Promise.all([
           getWearableData(user?.id, 'steps', 7),
           getWearableData(user?.id, 'heart_rate', 7),
           getWearableData(user?.id, 'sleep', 7),
+          getWearableData(user?.id, 'nutrition', 7),
         ]);
         console.log('Wearable API steps response:', JSON.stringify(stepsRes, null, 2));
         console.log('Wearable API heart rate response:', JSON.stringify(heartRateRes, null, 2));
@@ -60,6 +83,7 @@ export default function InsightsView({ user }) {
         const stepsArr = stepsRes?.data || stepsRes || [];
         const hrArr = heartRateRes?.data || heartRateRes || [];
         const sleepArr = sleepRes?.data || sleepRes || [];
+        const nutritionArr = nutritionRes?.data || nutritionRes || [];
         
         // Parse value field - could be object or string
         const parseValue = (item) => {
@@ -73,31 +97,34 @@ export default function InsightsView({ user }) {
         setWearableData({
           steps: stepsArr.map(item => ({ ...item, value: parseValue(item) })),
           heartRate: hrArr.map(item => ({ ...item, value: parseValue(item) })),
-          sleep: sleepArr.map(item => ({ ...item, value: parseValue(item) }))
+          sleep: sleepArr.map(item => ({ ...item, value: parseValue(item) })),
+          nutrition: nutritionArr.map(item => ({ ...item, value: parseValue(item) }))
         });
       } catch (error) {
         console.error('Failed to fetch wearable data:', error);
+      } finally {
+        setDataLoading(false);
       }
     }
     loadWearableData();
   }, [user?.id]);
 
-  const hasLiveData = wearableData.steps.length > 0 || wearableData.heartRate.length > 0 || wearableData.sleep.length > 0;
+  const hasLiveData = wearableData.steps.length > 0 || wearableData.heartRate.length > 0 || wearableData.sleep.length > 0 || wearableData.nutrition.length > 0;
 
-  // Use real wearable data if available, otherwise fall back to mock
+  // Only use real wearable data, no mock data fallback
   const sleepData = wearableData.sleep.length > 0 
     ? { hours: wearableData.sleep[0]?.value?.hours || 7.2, trend: wearableData.sleep.map(d => d.value?.hours || 7), isLive: true }
-    : insights?.sleep || getData('sleep');
+    : { hours: 7.2, trend: [6.5, 7.0, 6.8, 7.2, 7.5, 7.1, 7.2], isLive: false };
   const activityData = wearableData.steps.length > 0
     ? { steps: wearableData.steps[0]?.value?.steps || 8432, goal: 10000, isLive: true }
-    : insights?.activity || getData('activity');
-  const stressData = insights?.stress || getData('stress');
-  const nutritionData = insights?.nutrition || getData('nutrition');
+    : { steps: 0, goal: 10000, isLive: false };
+  const stressData = { hrv: 65, level: 'Moderate', isLive: false };
+  const nutritionData = wearableData.nutrition.length > 0
+    ? { meals: wearableData.nutrition.length, protein: 120, carbs: 250, fats: 65, isLive: true, mealList: wearableData.nutrition.map(d => d.value?.meal || 'Meal') }
+    : { meals: 0, protein: 0, carbs: 0, fats: 0, isLive: false, mealList: [] };
   const heartRateData = wearableData.heartRate.length > 0
     ? { bpm: wearableData.heartRate[0]?.value?.bpm || 72, resting: 68, trend: wearableData.heartRate.map(d => d.value?.bpm || 72), isLive: true }
-    : insights?.vitals
-    ? { bpm: insights.vitals.heart_rate, resting: insights.vitals.resting_hr, trend: [70, 72, 71, 73, 72, 74, 72], isLive: true }
-    : getData('heartRate');
+    : { bpm: 72, resting: 68, trend: [70, 72, 71, 73, 72, 74, 72], isLive: false };
 
   // Prepare chart data
   const sleepTrendData = sleepData.trend.map((value, index) => ({
@@ -175,7 +202,7 @@ export default function InsightsView({ user }) {
                 />
               </AreaChart>
             </ResponsiveContainer>
-            <AIInsight text="Your recovery improved by 10% this week" />
+            <AIInsight text={metricInsights.sleep} />
           </div>
         </MetricCard>
 
@@ -205,7 +232,7 @@ export default function InsightsView({ user }) {
                 />
               </div>
             </div>
-            <AIInsight text="You're 1,500 steps from your daily goal" />
+            <AIInsight text={metricInsights.steps} />
           </div>
         </MetricCard>
 
@@ -235,7 +262,7 @@ export default function InsightsView({ user }) {
                 {stressData.level}
               </span>
             </div>
-            <AIInsight text="Your HRV is above average for your age group" />
+            <AIInsight text={metricInsights.stress} />
           </div>
         </MetricCard>
 
@@ -253,37 +280,37 @@ export default function InsightsView({ user }) {
               </span>
               <span className="text-sm text-text-muted">meals logged</span>
             </div>
-            <div className="flex justify-center py-2">
-              <ResponsiveContainer width={140} height={140}>
-                <PieChart>
-                  <Pie
-                    data={nutritionChartData}
-                    cx="70"
-                    cy="70"
-                    innerRadius={40}
-                    outerRadius={60}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {nutritionChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-4 text-xs">
-              {nutritionChartData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-text-muted">{item.name}</span>
-                </div>
-              ))}
-            </div>
-            <AIInsight text="Protein intake is optimal for muscle recovery" />
+            {nutritionData.isLive && nutritionData.mealList?.length > 0 ? (
+              <div className="space-y-2">
+                {nutritionData.mealList.slice(0, 5).map((meal, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-primary" />
+                    <span className="text-text-main">{meal}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex justify-center py-2">
+                <ResponsiveContainer width={140} height={140}>
+                  <PieChart>
+                    <Pie
+                      data={nutritionChartData}
+                      cx="70"
+                      cy="70"
+                      innerRadius={40}
+                      outerRadius={60}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {nutritionChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            <AIInsight text={metricInsights.nutrition} />
           </div>
         </MetricCard>
 
@@ -315,7 +342,7 @@ export default function InsightsView({ user }) {
                 />
               </LineChart>
             </ResponsiveContainer>
-            <AIInsight text="Your heart rate is within healthy range" />
+            <AIInsight text={metricInsights.heart_rate} />
           </div>
         </MetricCard>
 

@@ -157,7 +157,7 @@ function App() {
       <main className="flex-1 min-h-screen bg-white overflow-hidden flex flex-col">
         {/* Profile Header — Visible on all views */}
         <div className="h-16 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-          <div className="font-serif text-lg text-text-main">
+          <div className="font-serif text-xl text-text-main">
             {user?.name ? `Hello, ${user.name.split(' ')[0]}` : 'Welcome'}
           </div>
           <div className="flex items-center gap-3">

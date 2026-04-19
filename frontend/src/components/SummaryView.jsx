@@ -7,14 +7,20 @@ export default function SummaryView({ user }) {
   const [aiSummary, setAiSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [recalculatingBMI, setRecalculatingBMI] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function loadInsights() {
+      console.log('SummaryView: Loading insights for user', user?.id);
       try {
         const data = await fetchInsights(user?.id);
+        console.log('SummaryView: Insights loaded successfully', data);
         setInsights(data);
+        setError(null);
       } catch (error) {
-        console.error('Failed to fetch insights:', error);
+        console.error('SummaryView: Failed to fetch insights:', error);
+        setError('Failed to load insights');
       } finally {
         setLoading(false);
       }
@@ -32,6 +38,31 @@ export default function SummaryView({ user }) {
       console.error('Failed to generate AI summary:', error);
     } finally {
       setLoadingSummary(false);
+    }
+  };
+
+  const handleRecalculateBMI = async () => {
+    setRecalculatingBMI(true);
+    try {
+      const response = await fetch(`http://localhost:8000/api/user/recalculate-bmi?user_id=${user?.id || '00000000-0000-0000-0000-000000000001'}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error('Failed to recalculate BMI:', data.error);
+        return;
+      }
+      
+      // Reload insights to get updated BMI
+      const insightsResponse = await fetchInsights(user?.id);
+      setInsights(insightsResponse);
+      
+      console.log('BMI recalculated:', data.bmi);
+    } catch (error) {
+      console.error('Failed to recalculate BMI:', error);
+    } finally {
+      setRecalculatingBMI(false);
     }
   };
 
@@ -59,8 +90,7 @@ export default function SummaryView({ user }) {
         <div class="user-info">
           <strong>User:</strong> ${insights?.user?.name || 'N/A'}<br>
           <strong>Age:</strong> ${insights?.user?.age || 'N/A'} | 
-          <strong>Gender:</strong> ${insights?.user?.gender || 'N/A'} | 
-          <strong>BMI:</strong> ${insights?.user?.bmi || 'N/A'}
+          <strong>Gender:</strong> ${insights?.user?.gender || 'N/A'}
         </div>
         <h2 style="color: #10b981;">AI-Generated Health Summary</h2>
         <div class="summary">${aiSummary}</div>
@@ -80,6 +110,20 @@ export default function SummaryView({ user }) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
         <p className="text-text-muted">Loading summary...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 flex items-center justify-center h-full flex-col gap-4">
+        <p className="text-text-muted">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-primary text-white rounded-lg"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -154,7 +198,7 @@ export default function SummaryView({ user }) {
           <HiUser className="text-primary text-xl" />
           <h3 className="text-lg font-semibold text-text-main">Profile</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-text-muted">Name</p>
             <p className="text-sm font-medium text-text-main">{insights.user?.name || 'N/A'}</p>
@@ -166,10 +210,6 @@ export default function SummaryView({ user }) {
           <div>
             <p className="text-xs text-text-muted">Gender</p>
             <p className="text-sm font-medium text-text-main">{insights.user?.gender || 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-text-muted">BMI</p>
-            <p className="text-sm font-medium text-text-main">{insights.user?.bmi || 'N/A'}</p>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiBeaker, HiArrowPath, HiChartBar, HiSparkles } from 'react-icons/hi2';
+import { fetchChatHistory } from '../services/chat';
 
 export default function SimulationUI({ switchView, user }) {
   const [messages, setMessages] = useState([]);
@@ -14,6 +15,25 @@ export default function SimulationUI({ switchView, user }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLanding]);
+
+  // Load what-if simulation history on mount
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const response = await fetchChatHistory(user?.id, 'whatif');
+        if (response.history && response.history.length > 0) {
+          const formattedMessages = response.history.map(turn => ({
+            role: turn.role,
+            content: turn.content,
+          })).reverse();
+          setMessages(formattedMessages);
+        }
+      } catch (error) {
+        console.error('Failed to load simulation history:', error);
+      }
+    }
+    loadHistory();
+  }, [user?.id]);
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -30,7 +50,8 @@ export default function SimulationUI({ switchView, user }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: trimmed,
-          user_id: user?.id || '00000000-0000-0000-0000-000000000001'
+          user_id: user?.id || '00000000-0000-0000-0000-000000000001',
+          view: 'whatif'
         })
       });
       const data = await response.json();

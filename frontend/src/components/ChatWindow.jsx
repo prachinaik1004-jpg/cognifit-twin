@@ -7,7 +7,7 @@ import {
   HiClipboardDocumentList,
   HiExclamationTriangle,
   HiBeaker,
-  HiQrCode,
+  HiDocumentText,
 } from 'react-icons/hi2';
 import { sendChatMessage, fetchChatHistory } from '../services/chat';
 
@@ -15,7 +15,7 @@ const quickActions = [
   { id: 'meal', label: 'Log Meal', icon: HiClipboardDocumentList, color: 'text-amber-600 bg-amber-50' },
   { id: 'risks', label: 'View Health Risks', icon: HiExclamationTriangle, color: 'text-rose-600 bg-rose-50' },
   { id: 'simulate', label: 'Run What-If Simulation', icon: HiBeaker, color: 'text-primary bg-primary-light' },
-  { id: 'qr', label: 'Share QR Report', icon: HiQrCode, color: 'text-indigo-600 bg-indigo-50' },
+  { id: 'summary', label: 'View Summary', icon: HiDocumentText, color: 'text-indigo-600 bg-indigo-50' },
 ];
 
 function getGreeting() {
@@ -55,12 +55,12 @@ export default function ChatWindow({ isSimulationMode = false, switchView, user 
   useEffect(() => {
     async function loadHistory() {
       try {
-        const response = await fetchChatHistory(user?.id);
+        const response = await fetchChatHistory(user?.id, 'chat');
         if (response.history && response.history.length > 0) {
           const formattedMessages = response.history.map(turn => ({
             role: turn.role,
             content: turn.content,
-          }));
+          })).reverse(); // Reverse to show newest first
           setMessages(formattedMessages);
         }
       } catch (error) {
@@ -154,7 +154,7 @@ export default function ChatWindow({ isSimulationMode = false, switchView, user 
           animate={{ opacity: 1 }}
           className="px-4 py-2 border-b border-gray-100 shrink-0"
         >
-          <h2 className="font-serif text-base text-text-main">
+          <h2 className="font-serif text-lg text-text-main">
             {getGreeting()}, {user?.name?.split(' ')[0] || 'there'}
           </h2>
         </motion.div>

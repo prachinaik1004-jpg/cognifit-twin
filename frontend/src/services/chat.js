@@ -62,9 +62,12 @@ export async function runSimulation(payload) {
   return response.data;
 }
 
-export async function fetchChatHistory(userId = null) {
+export async function fetchChatHistory(userId = null, source = null) {
   const url = `${API_BASE}/chat/history`;
   const params = userId ? { user_id: userId } : {};
+  if (source) {
+    params.source = source;
+  }
   const response = await axios.get(url, { params });
   return response.data;
 }

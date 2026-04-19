@@ -51,12 +51,14 @@ def save_conversation_turn(user_id: str, role: str, content: str, source: str = 
         "source": source
     }).execute()
 
-def get_conversation_history(user_id: str, limit: int = 50):
-    """Fetches conversation history for a user."""
-    response = supabase.table("conversation_turns") \
+def get_conversation_history(user_id: str, limit: int = 50, source: str = None):
+    """Fetches conversation history for a user. Optionally filter by source."""
+    query = supabase.table("conversation_turns") \
         .select("*") \
-        .eq("user_id", user_id) \
-        .order("created_at", desc=True) \
+        .eq("user_id", user_id)
+    if source:
+        query = query.eq("source", source)
+    response = query.order("created_at", desc=True) \
         .limit(limit) \
         .execute()
     return response.data
@@ -157,9 +159,24 @@ def create_user(user_data: dict):
     user_id = str(uuid.uuid4())
     
     # Calculate BMI
-    height_m = float(user_data.get('height', 170)) / 100  # cm to meters
+    height = float(user_data.get('height', 170))
     weight = float(user_data.get('weight', 70))
+    
+    # Check if height is in meters (less than 3) or cm (greater than 100)
+    if height < 3:
+        # Height is already in meters
+        height_m = height
+    else:
+        # Height is in cm, convert to meters
+        height_m = height / 100
+    
     bmi = round(weight / (height_m ** 2), 1)
+    
+    # Validate BMI is in reasonable range (15-50)
+    if bmi < 15 or bmi > 50:
+        print(f"Warning: Calculated BMI {bmi} is outside normal range. Height: {height}, Weight: {weight}")
+        # Recalculate with default values if BMI is unreasonable
+        bmi = round(weight / ((1.7) ** 2), 1)
     
     # Map activity level to boolean
     activity_level = user_data.get('activityLevel', 'sedentary')
