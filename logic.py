@@ -3,7 +3,11 @@ import math
 def calculate_framingham_risk_proper(gender, age, total_chol, hdl, sbp, is_treated, smoker):
     """
     Proper clinical implementation using Cox Proportional Hazards Model coefficients.
+    Validated for ages 30-74. Values outside this range are clamped.
     """
+    # Clamp age to valid Framingham range
+    age = max(30, min(age, 74))
+    
     # 1. Natural Logarithm transformations (Clinical Standard)
     ln_age = math.log(age)
     ln_total = math.log(total_chol)
@@ -30,6 +34,9 @@ def calculate_framingham_risk_proper(gender, age, total_chol, hdl, sbp, is_treat
     # Note: Mean coefficients are required to normalize the risk score properly.
     # This represents the actual clinical probability percentage.
     risk = 1 - (avg_survival ** math.exp(sum_beta - 23.925)) # Normalized constant
+    
+    # Clamp risk to valid range [0, 1] - formula can exceed 1.0 for extreme inputs
+    risk = max(0.0, min(risk, 1.0))
     
     return round(risk * 100, 2)
 

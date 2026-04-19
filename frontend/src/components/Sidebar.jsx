@@ -2,15 +2,17 @@ import {
   HiChatBubbleLeftRight,
   HiChartBar,
   HiBeaker,
-  HiQrCode,
+  HiDocumentText,
   HiClock,
+  HiCog,
 } from 'react-icons/hi2';
 
 const navItems = [
   { id: 'Chat', label: 'Twin Chat', icon: HiChatBubbleLeftRight },
   { id: 'Insights', label: 'Insights', icon: HiChartBar },
   { id: 'What-If', label: 'What-If', icon: HiBeaker },
-  { id: 'QR', label: 'Share QR', icon: HiQrCode },
+  { id: 'Summary', label: 'Summary', icon: HiDocumentText },
+  { id: 'Settings', label: 'Settings', icon: HiCog },
 ];
 
 const pastSimulations = [

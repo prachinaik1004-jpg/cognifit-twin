@@ -9,7 +9,7 @@ import {
   HiBeaker,
   HiQrCode,
 } from 'react-icons/hi2';
-import { sendChatMessage } from '../services/chat';
+import { sendChatMessage, fetchChatHistory } from '../services/chat';
 
 const quickActions = [
   { id: 'meal', label: 'Log Meal', icon: HiClipboardDocumentList, color: 'text-amber-600 bg-amber-50' },
@@ -38,7 +38,7 @@ function getEmotionStyles(emotion) {
   return emotionStyles[emotion] || emotionStyles.neutral;
 }
 
-export default function ChatWindow({ isSimulationMode = false, switchView }) {
+export default function ChatWindow({ isSimulationMode = false, switchView, user }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [showSimBanner, setShowSimBanner] = useState(isSimulationMode);
@@ -52,6 +52,24 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
     }
   }, [messages, isLanding]);
 
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const response = await fetchChatHistory(user?.id);
+        if (response.history && response.history.length > 0) {
+          const formattedMessages = response.history.map(turn => ({
+            role: turn.role,
+            content: turn.content,
+          }));
+          setMessages(formattedMessages);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    }
+    loadHistory();
+  }, [user?.id]);
+
   const handleSend = async (overrideInput) => {
     const trimmed = (overrideInput ?? input).trim();
     if (!trimmed) return;
@@ -62,7 +80,7 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(trimmed);
+      const response = await sendChatMessage(trimmed, user?.id);
       const assistantMsg = {
         role: 'assistant',
         content: response.reply,
@@ -116,15 +134,15 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
   };
 
   return (
-    <div className="flex flex-col flex-1 relative">
+    <div className="flex flex-col relative max-w-4xl mx-auto w-full h-[calc(100vh-4rem)]">
       {showSimBanner && !isLanding && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-primary-light border-b border-primary/20 px-4 py-2 text-center shrink-0"
+          className="bg-primary-light border-b border-primary/20 px-3 py-1.5 text-center shrink-0"
         >
-          <span className="text-sm font-medium text-primary">
-            ⚗️ Simulation Mode — Explore hypothetical scenarios
+          <span className="text-xs font-medium text-primary">
+            Simulation Mode - Explore hypothetical scenarios
           </span>
         </motion.div>
       )}
@@ -134,16 +152,16 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="px-6 py-3 border-b border-gray-100 shrink-0"
+          className="px-4 py-2 border-b border-gray-100 shrink-0"
         >
-          <h2 className="font-serif text-lg text-text-main">
-            {getGreeting()}, Prachi
+          <h2 className="font-serif text-base text-text-main">
+            {getGreeting()}, {user?.name?.split(' ')[0] || 'there'}
           </h2>
         </motion.div>
       )}
 
       {/* Main Content Area */}
-      <div className={`flex-1 overflow-y-auto ${isLanding ? 'flex flex-col items-center justify-center' : ''}`}>
+      <div className={`flex-1 overflow-y-auto ${isLanding ? 'flex flex-col items-center justify-center' : ''} scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400`}>
         <AnimatePresence mode="wait">
           {isLanding ? (
             <motion.div
@@ -155,7 +173,7 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
               className="flex flex-col items-center w-full max-w-2xl px-4"
             >
               <h1 className="font-serif text-4xl sm:text-5xl text-text-main mb-2 text-center">
-                {getGreeting()}, Prachi
+                {getGreeting()}, {user?.name?.split(' ')[0] || 'there'}
               </h1>
               <p className="text-text-muted text-sm mb-10 text-center">
                 How can I help you with your cognitive health today?
@@ -200,7 +218,7 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
-              className="max-w-2xl mx-auto w-full px-4 py-6 space-y-4"
+              className="max-w-2xl mx-auto w-full px-3 py-3 space-y-3"
             >
               {messages.map((msg, i) => (
                 <motion.div
@@ -246,7 +264,7 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
       {/* Floating Input — Pinned to Bottom in Chat State */}
       {!isLanding && (
         <div className="shrink-0 border-t border-gray-100 bg-white">
-          <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="max-w-2xl mx-auto px-3 py-2">
             <FloatingInput
               input={input}
               setInput={setInput}
@@ -264,9 +282,9 @@ export default function ChatWindow({ isSimulationMode = false, switchView }) {
 
 function FloatingInput({ input, setInput, handleSend, handleKeyDown, isSimulationMode, isLoading }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-2.5 transition-shadow focus-within:shadow-md focus-within:border-gray-300">
-      <button className="p-1.5 rounded-lg text-text-muted hover:bg-gray-100 hover:text-text-main transition-colors cursor-pointer">
-        <HiPlus className="text-lg" />
+    <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white shadow-sm px-3 py-2 transition-shadow focus-within:shadow-md focus-within:border-gray-300">
+      <button className="p-1 rounded-lg text-text-muted hover:bg-gray-100 hover:text-text-main transition-colors cursor-pointer">
+        <HiPlus className="text-base" />
       </button>
       <input
         type="text"
@@ -281,18 +299,18 @@ function FloatingInput({ input, setInput, handleSend, handleKeyDown, isSimulatio
         disabled={isLoading}
         className="flex-1 text-sm text-text-main placeholder:text-text-muted bg-transparent focus:outline-none min-w-0 disabled:opacity-50"
       />
-      <button className="p-1.5 rounded-lg text-text-muted hover:bg-gray-100 hover:text-text-main transition-colors cursor-pointer">
-        <HiMicrophone className="text-lg" />
+      <button className="p-1 rounded-lg text-text-muted hover:bg-gray-100 hover:text-text-main transition-colors cursor-pointer">
+        <HiMicrophone className="text-base" />
       </button>
       <button
         onClick={() => handleSend()}
         disabled={!input.trim() || isLoading}
-        className="p-1.5 rounded-lg bg-primary text-white hover:bg-primary-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        className="p-1 rounded-lg bg-primary text-white hover:bg-primary-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
       >
         {isLoading ? (
-          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
         ) : (
-          <HiPaperAirplane className="text-base" />
+          <HiPaperAirplane className="text-sm" />
         )}
       </button>
     </div>

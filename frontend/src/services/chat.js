@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
 
 // Mock live data (simulating wearables API)
 const liveData = {
@@ -40,18 +40,31 @@ export function getData(metric) {
   return { ...baseline, isLive: false };
 }
 
-export async function sendChatMessage(message) {
-  const CHAT_API_BASE = 'http://10.20.2.202:8000/api/chat';
-  const response = await axios.post(CHAT_API_BASE, { message });
+export async function sendChatMessage(message, userId = null) {
+  const CHAT_API_BASE = 'http://localhost:8000/api/chat';
+  const payload = { message };
+  if (userId) {
+    payload.user_id = userId;
+  }
+  const response = await axios.post(CHAT_API_BASE, payload);
   return response.data; // Returns { reply: "AI text", emotion: "detected_mood" }
 }
 
-export async function fetchInsights() {
-  const response = await axios.get(`${API_BASE}/insights`);
+export async function fetchInsights(userId = null) {
+  const url = `${API_BASE}/user/insights`;
+  const params = userId ? { user_id: userId } : {};
+  const response = await axios.get(url, { params });
   return response.data;
 }
 
 export async function runSimulation(payload) {
   const response = await axios.post(`${API_BASE}/simulate`, payload);
+  return response.data;
+}
+
+export async function fetchChatHistory(userId = null) {
+  const url = `${API_BASE}/chat/history`;
+  const params = userId ? { user_id: userId } : {};
+  const response = await axios.get(url, { params });
   return response.data;
 }

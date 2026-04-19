@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -12,7 +12,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { HiMoon, HiUser, HiHeart, HiSparkles, HiArrowsUpDown } from 'react-icons/hi2';
-import { getData } from '../services/chat';
+import { getData, fetchInsights } from '../services/chat';
+import { getWearableData } from '../services/wearable';
 
 const COLORS = {
   protein: '#10a37f',
@@ -20,13 +21,83 @@ const COLORS = {
   fats: '#6366f1',
 };
 
-export default function InsightsView() {
-  const sleepData = getData('sleep');
-  const activityData = getData('activity');
-  const stressData = getData('stress');
-  const nutritionData = getData('nutrition');
-  const heartRateData = getData('heartRate');
-  const bloodPressureData = getData('bloodPressure');
+export default function InsightsView({ user }) {
+  const [insights, setInsights] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [wearableData, setWearableData] = useState({
+    steps: [],
+    heartRate: [],
+    sleep: []
+  });
+
+  useEffect(() => {
+    async function loadInsights() {
+      try {
+        const data = await fetchInsights(user?.id);
+        setInsights(data);
+      } catch (error) {
+        console.error('Failed to fetch insights:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadInsights();
+  }, [user?.id]);
+
+  useEffect(() => {
+    async function loadWearableData() {
+      try {
+        const [stepsRes, heartRateRes, sleepRes] = await Promise.all([
+          getWearableData(user?.id, 'steps', 7),
+          getWearableData(user?.id, 'heart_rate', 7),
+          getWearableData(user?.id, 'sleep', 7),
+        ]);
+        console.log('Wearable API steps response:', JSON.stringify(stepsRes, null, 2));
+        console.log('Wearable API heart rate response:', JSON.stringify(heartRateRes, null, 2));
+        console.log('Wearable API sleep response:', JSON.stringify(sleepRes, null, 2));
+        
+        // Parse data - handle both {data: [...]} and direct array
+        const stepsArr = stepsRes?.data || stepsRes || [];
+        const hrArr = heartRateRes?.data || heartRateRes || [];
+        const sleepArr = sleepRes?.data || sleepRes || [];
+        
+        // Parse value field - could be object or string
+        const parseValue = (item) => {
+          let val = item.value;
+          if (typeof val === 'string') {
+            try { val = JSON.parse(val); } catch(e) { val = {}; }
+          }
+          return val;
+        };
+        
+        setWearableData({
+          steps: stepsArr.map(item => ({ ...item, value: parseValue(item) })),
+          heartRate: hrArr.map(item => ({ ...item, value: parseValue(item) })),
+          sleep: sleepArr.map(item => ({ ...item, value: parseValue(item) }))
+        });
+      } catch (error) {
+        console.error('Failed to fetch wearable data:', error);
+      }
+    }
+    loadWearableData();
+  }, [user?.id]);
+
+  const hasLiveData = wearableData.steps.length > 0 || wearableData.heartRate.length > 0 || wearableData.sleep.length > 0;
+
+  // Use real wearable data if available, otherwise fall back to mock
+  const sleepData = wearableData.sleep.length > 0 
+    ? { hours: wearableData.sleep[0]?.value?.hours || 7.2, trend: wearableData.sleep.map(d => d.value?.hours || 7), isLive: true }
+    : insights?.sleep || getData('sleep');
+  const activityData = wearableData.steps.length > 0
+    ? { steps: wearableData.steps[0]?.value?.steps || 8432, goal: 10000, isLive: true }
+    : insights?.activity || getData('activity');
+  const stressData = insights?.stress || getData('stress');
+  const nutritionData = insights?.nutrition || getData('nutrition');
+  const heartRateData = wearableData.heartRate.length > 0
+    ? { bpm: wearableData.heartRate[0]?.value?.bpm || 72, resting: 68, trend: wearableData.heartRate.map(d => d.value?.bpm || 72), isLive: true }
+    : insights?.vitals
+    ? { bpm: insights.vitals.heart_rate, resting: insights.vitals.resting_hr, trend: [70, 72, 71, 73, 72, 74, 72], isLive: true }
+    : getData('heartRate');
 
   // Prepare chart data
   const sleepTrendData = sleepData.trend.map((value, index) => ({
@@ -53,13 +124,22 @@ export default function InsightsView() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Page Header */}
       <div>
-        <h1 className="font-serif text-3xl text-text-main mb-2">
-          Your Health Twin Insights
-        </h1>
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="font-serif text-3xl text-text-main">
+            Your Health Twin Insights
+          </h1>
+          {hasLiveData ? (
+            <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Live Data</span>
+          ) : (
+            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-full">Mock Data</span>
+          )}
+        </div>
         <p className="text-sm text-text-muted">
-          Synthesized from your wearables, lifestyle, and population baselines.
+          {insights ? `Personalized for ${insights.user?.name || 'you'}` : 'Synthesized from your wearables, lifestyle, and population baselines.'}
         </p>
       </div>
+
+      {/* Risk Scores - removed, available in What-If simulator */}
 
       {/* 2x3 Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -239,55 +319,7 @@ export default function InsightsView() {
           </div>
         </MetricCard>
 
-        {/* Blood Pressure Card */}
-        <MetricCard
-          title="BLOOD PRESSURE"
-          icon={HiArrowsUpDown}
-          data={bloodPressureData}
-          isLive={bloodPressureData.isLive}
-        >
-          <div className="space-y-4">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-text-main">
-                {bloodPressureData.systolic}/{bloodPressureData.diastolic}
-              </span>
-              <span className="text-sm text-text-muted">mmHg</span>
-            </div>
-            <div className="text-center">
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                bloodPressureData.status === 'Normal' 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-amber-100 text-amber-700'
-              }`}>
-                {bloodPressureData.status}
-              </span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-text-muted">
-                <span>Systolic</span>
-                <span className="font-medium text-text-main">{bloodPressureData.systolic}</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-rose-500 rounded-full"
-                  style={{ width: `${(bloodPressureData.systolic / 140) * 100}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-text-muted">
-                <span>Diastolic</span>
-                <span className="font-medium text-text-main">{bloodPressureData.diastolic}</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 rounded-full"
-                  style={{ width: `${(bloodPressureData.diastolic / 90) * 100}%` }}
-                />
-              </div>
-            </div>
-            <AIInsight text="Blood pressure readings are optimal" />
-          </div>
-        </MetricCard>
-      </div>
+        </div>
     </div>
   );
 }

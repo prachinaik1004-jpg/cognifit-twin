@@ -2,18 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiBeaker, HiArrowPath, HiChartBar, HiSparkles } from 'react-icons/hi2';
 
-const mockPastSimulations = [
-  { id: 1, title: 'Sleep Impact on Memory', date: '2 hours ago', result: '+12% resilience' },
-  { id: 2, title: 'Diet Change Simulation', date: 'Yesterday', result: '+5% focus' },
-  { id: 3, title: 'Exercise Frequency Test', date: '3 days ago', result: '+8% cognitive score' },
-  { id: 4, title: 'Stress Reduction Model', date: 'Last week', result: '+15% mental clarity' },
-];
-
-export default function SimulationUI({ switchView }) {
+export default function SimulationUI({ switchView, user }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isSimulating, setIsSimulating] = useState(false);
-  const [simResult, setSimResult] = useState(null);
   const messagesEndRef = useRef(null);
   const isLanding = messages.length === 0;
 
@@ -23,7 +15,7 @@ export default function SimulationUI({ switchView }) {
     }
   }, [messages, isLanding]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -32,15 +24,32 @@ export default function SimulationUI({ switchView }) {
     setInput('');
     setIsSimulating(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch('http://localhost:8000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          user_id: user?.id || '00000000-0000-0000-0000-000000000001'
+        })
+      });
+      const data = await response.json();
+
       const reply = {
         role: 'assistant',
-        content: `Simulating: "${trimmed}"...\n\nBased on the cognitive health model, this change is projected to improve your resilience score by ~8% over 30 days. Key factors: improved sleep quality, reduced cortisol levels.`,
+        content: data.reply || 'Simulation failed',
       };
       setMessages((prev) => [...prev, reply]);
+    } catch (error) {
+      console.error('Simulation error:', error);
+      const reply = {
+        role: 'assistant',
+        content: 'Sorry, there was an error running the simulation. Please try again.',
+      };
+      setMessages((prev) => [...prev, reply]);
+    } finally {
       setIsSimulating(false);
-      setSimResult({ impact: '+8%', timeframe: '30 days' });
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -167,22 +176,6 @@ export default function SimulationUI({ switchView }) {
                   </div>
                 </motion.div>
               ))}
-              {simResult && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4"
-                >
-                  <div className="flex items-center gap-2 text-green-700 font-medium text-sm mb-2">
-                    <HiChartBar className="text-base" />
-                    Simulation Result
-                  </div>
-                  <div className="text-green-800 text-sm">
-                    Projected impact: <span className="font-semibold">{simResult.impact}</span> over{' '}
-                    <span className="font-semibold">{simResult.timeframe}</span>
-                  </div>
-                </motion.div>
-              )}
               <div ref={messagesEndRef} />
             </motion.div>
           )}
